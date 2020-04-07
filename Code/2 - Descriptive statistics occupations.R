@@ -1,13 +1,72 @@
 library(tidyverse)
 library(haven)
+
 library(readxl)
 library(stringr)
 
+library(googlesheets4)
+
 theme_set(theme_bw())
 
+# Import data ----
+
+# Import questionnaire data assembled in previous script
 quest <- read_rds("./Data/questionnaire.rds")
 
-# Select teleworkability questions ----
+# Import table from Google sheets, comparing teleworking questions
+# Will require authentication to access Google sheets the first time
+telework_table <- read_sheet("https://docs.google.com/spreadsheets/d/1XF7tZrjl9eTILeq7M4mLeuPoqX4zlK4GflUfsbT2sgU") 
+
+# Import conversion table between Istat CP2011 (5-digit) and ISCO08 (3-digit) occupational codes
+conversion_cp_isco <- read_csv("./Metadata/Conversion CP-ISCO.csv", col_types = "cccc") %>% 
+  select(
+    cp2011 = codice_CP2011,
+    isco08 = codice_ISCO08,
+    occupation_title = nome_ISCO08
+    )
+
+# Select telework varables in questionnaire ---
+
+telework_occupation <- telework_table %>% 
+  select(
+    question = `Qu. N.`,
+    telework = `Telework Matteo`,
+    category = Category
+  ) %>% 
+  filter(!is.na(category)) %>% 
+  inner_join(quest, by = c("question" = "var")) %>% 
+  select(cp2011 = pro,  question, question_label_en, val, telework, category) 
+
+telework_occupation_isco <- telework_occupation %>% 
+  left_join(conversion_cp_isco, by = "cp2011") %>%
+  select(cp2011, isco08, occupation_title, everything()) %>% 
+  # FIXME: conversion 5-3 digit not weighed by occup volume!
+  group_by(isco08, question) %>%
+  mutate(
+    val_avg = mean(val, na.rm = T),
+    val_sd = sd(val, na.rm = T)
+    ) %>% 
+  distinct(isco08, .keep_all = T) %>% 
+  select(-cp2011)
+
+# Expand values of telework questions by ISCO 
+telework_occupation_isco %>%
+  arrange(category, question) %>% 
+  select(isco08, occupation_title, question_label_en, val) %>% 
+  pivot_wider(id_cols = c("isco08", "occupation_title"), names_from = question_label_en, values_from = val) %>% 
+  arrange(isco08) %>% 
+  write_csv("isco_questions.csv")
+
+# Aggregate indices of teleworkability
+telework_occupation_isco %>% 
+  group_by(isco08, occupation_title, category) %>% 
+  summarise(index = mean(val)) %>% 
+  pivot_wider(id_cols = c("isco08", "occupation_title"), names_from = category, values_from = index) %>% 
+  write_csv("isco_telework.csv")
+  
+  
+
+# Teleworkability questions population ----
 
 # Select a few questions as examples
 

@@ -5,6 +5,11 @@ library(stringr)
 
 theme_set(theme_bw())
 
+# Inputs and outputs:
+# < ./Data/ICP/9_sez_g.xls : answers to section G of ICP questionnaire
+# < ./Data/ICP/10_sez_h.xls : answers to section H of ICP questionnaire
+# < ./Metadata/questionnaire ONET-ICP.xlsx : 
+
 
 # Import and combine questionnaire and legend ----
 
